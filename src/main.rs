@@ -1,3 +1,4 @@
+// https://qiita.com/shunp/items/8b11450155266d2fcfc1
 #[macro_use]
 extern crate lambda_runtime as lambda;
 #[macro_use]
@@ -6,14 +7,20 @@ extern crate serde_derive;
 extern crate log;
 extern crate simple_logger;
 
+extern crate rusoto_core;
+extern crate rusoto_dynamodb;
+
 use lambda::error::HandlerError;
 
 use std::error::Error;
 
+use rusoto_core::Region;
+use rusoto_dynamodb::{DynamoDb, DynamoDbClient, ListTablesInput, GetItemInput, PutItemInput, DeleteItemInput, AttributeValue};
+use std::collections::HashMap;
+
 #[derive(Deserialize, Clone)]
 struct CustomEvent {
-    #[serde(rename = "firstName")]
-    first_name: String,
+    name: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -32,12 +39,38 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn my_handler(e: CustomEvent, c: lambda::Context) -> Result<CustomOutput, HandlerError> {
-    if e.first_name == "" {
-        error!("Empty first name in request {}", c.aws_request_id);
-        return Err(c.new_error("Empty first name"));
+    if e.name == "" {
+        error!("Empty name in request {}", c.aws_request_id);
+        return Err(c.new_error("Empty name"));
     }
 
+    let mut create_key: HashMap<String, AttributeValue> = HashMap::new();
+    create_key.insert(String::from("name"), AttributeValue {
+        s: Some(e.name),
+        ..Default::default()
+    });
+
+    let create_serials = PutItemInput {
+        item: create_key,
+        table_name: String::from("rust_serverless_sample"),
+        ..Default::default()
+    };
+
+    let client = DynamoDbClient::new(Region::UsEast1);
+
+    match client.put_item(create_serials).sync() {
+        Ok(result) => {
+            match result.attributes {
+                Some(_) => println!("some"),
+                None => println!("none"),
+            }
+        },
+        Err(error) => {
+            panic!("Error: {:?}", error);
+        },
+    };
+
     Ok(CustomOutput {
-        message: format!("Hello, {}!", e.first_name),
+        message: format!("Success"),
     })
 }

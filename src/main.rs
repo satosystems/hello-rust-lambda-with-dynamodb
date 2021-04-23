@@ -21,6 +21,7 @@ use std::collections::HashMap;
 #[derive(Deserialize, Clone)]
 struct CustomEvent {
     name: String,
+    address: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -49,6 +50,10 @@ fn my_handler(e: CustomEvent, c: lambda::Context) -> Result<CustomOutput, Handle
         s: Some(e.name),
         ..Default::default()
     });
+    create_key.insert(String::from("address"), AttributeValue {
+        s: Some(e.address),
+        ..Default::default()
+    });
 
     let create_serials = PutItemInput {
         item: create_key,
@@ -64,6 +69,33 @@ fn my_handler(e: CustomEvent, c: lambda::Context) -> Result<CustomOutput, Handle
                 Some(_) => println!("some"),
                 None => println!("none"),
             }
+        },
+        Err(error) => {
+            panic!("Error: {:?}", error);
+        },
+    };
+
+    let mut query_key: HashMap<String, AttributeValue> = HashMap::new();
+    query_key.insert(String::from("name"), AttributeValue {
+        s: Some(e.name),
+        ..Default::default()
+    });
+
+    let query_serials = GetItemInput {
+        key: query_key,
+        table_name: String::from("rust_serverless_sample"),
+        ..Default::default()
+    };
+
+    let client = DynamoDbClient::new(Region::UsEast1);
+
+    match client.get_item(query_serials).sync() {
+        Ok(result) => {
+            match result.item {
+                Some(_) => print!("Match!"),
+                None => print!("UnMatch!")
+            }
+
         },
         Err(error) => {
             panic!("Error: {:?}", error);
